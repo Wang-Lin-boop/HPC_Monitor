@@ -1,7 +1,7 @@
 # HPC_Monitor
 Automatic monitoring of HPC information and Send warning information by E-mail.
 
-Mode Currently Supported:      
+Modes Currently Supported:      
 
       1.pestat
       2.top
