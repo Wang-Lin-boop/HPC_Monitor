@@ -2,8 +2,8 @@
 Automatic monitoring of HPC information and Send warning information by E-mail.
 
 Mode Currently Supported:
-          1. pestat
-          2. top
+                    pestat
+                    top
 
 Usage
 ----
