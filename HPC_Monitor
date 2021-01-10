@@ -1,0 +1,144 @@
+#!/bin/bash
+
+function help(){
+    #help
+    #print help information for this script.
+cat << HELP
+Automatic monitoring of cluster information and Send warning information by E-mail.
+
+Mode Currently Supported:
+1. pestat
+2. top
+
+Usage: HPC_Monitor [OPTION] <parameter>
+
+Example: HPC_Monitor -s Monitor@shanghaitech.edu.cn -r User@shanghaitech.edu.cn -x ******
+    -s sender_E-mail 
+    -r recipients_E-mail 
+    -x passwd_of_sender_E-mail
+
+Thank you for your using, If you found any problem, Please contact wanglin3@shanghaitech.edu.cn.
+HELP
+}
+
+function testarray(){
+testlogic=false
+for line in $2
+do
+if [ "$1"x == "$line"x ];then
+  testlogic=true;fi
+done
+}
+
+function toprank(){
+if test ! -z "$(top -b -n 1 | head -8 | tail -3 | awk '$9>600.0 {print $9}')";then
+Username=`top -b -n 1 | head -8 | tail -3 | awk '$9>600.0 {print $2}'`
+UserOverload=$((AbnormalSignal+1))
+fi
+}
+
+function mailtoUser(){
+date > mailtoUser.txt
+echo "$Username在学校集群登录节点占用的资源已超过登录节点最大限制，请及时处理！" >> mailtoUser.txt
+top -b -n 1 | head -8 | grep COMMAND | awk '{print $1,$2,$9,$10,$11,$12}' >> mailtoUser.txt
+top -b -n 1 | head -8 | tail -3 | awk '$9>600.0 {print $1,$2,$9,$10,$11,$12}' >> mailtoUser.txt
+echo "" >> mailtoUser.txt
+echo "在登录节点运行任务请不要占用超过3核以上及运行过长时间，否则容易导致所有用户运行卡顿！" >> mailtoUser.txt
+echo "本邮件为自动发送，如有疑问，请联系hpcsupport@shanghaitech.edu.cn" >> mailtoUser.txt
+echo "请在二十四小时内处理该任务,如有疑问，请邮件至hpcsupport@shanghaitech.edu.cn说明情况，谢谢！" >> mailtoUser.txt
+testarray $Username "${WhiteUserlist[*]}"
+if [ "${testlogic}"x == "false"x ];then
+sendEmail -f ${userEmail%%@*} -xu ${userEmail} -xp $Emailpasswd -t ${recipients}  -s smtp.shanghaitech.edu.cn -u "登录节点用户任务过载" -a mailtoUser.txt -o message-charset=utf-8 -o message-file=mailtoUser.txt
+WhiteUserlist+=("$Username")
+fi
+}
+
+function checkHPC(){
+if test ! -z "$(pestat | tr -d "*" | awk '$2==down {print $1,$2}')";then
+AbnormalSignal=$((AbnormalSignal+3));
+fi
+if test ! -z "$(pestat | tr -d "*"| tail -n +2  | awk '$3-$5>$5-2 {print $1,$2,$3,$5,$4,$6}')";then
+AbnormalSignal=$((AbnormalSignal+1));
+fi
+if test ! -z "$(pestat | tr -d "*" | tail -n +2 | awk '$4-$6>0.0 {print $1,$2,$3,$5,$4,$6}')";then
+AbnormalSignal=$((AbnormalSignal+2));
+fi
+}
+
+function checklog(){
+date > report.txt
+echo "" >> report.txt
+if test ! -z "$(pestat | tr -d "*" | awk '$2==down {print $1,$2}')";then
+echo "Warning: These nodes have down: ">> report.txt
+pestat | head -n 1 | awk '{print $1,$2}'>> report.txt
+pestat | tr -d "*" | awk '$2==down {print $1,$2}'>> report.txt
+echo "">> report.txt
+fi
+if test ! -z "$(pestat | tr -d "*" | tail -n +2  | awk '$4-$6>0.0 {print $1,$2,$3,$5,$4,$6}')";then
+echo "Warning: These nodes are overloaded: ">> report.txt
+pestat | head -n 1 | awk '{print $1,$2,$3,$5,$4,$6}'>> report.txt
+pestat | tr -d "*" | awk '$4-$6>0.0 {print $1,$2,$3,$5,$4,$6}'>> report.txt
+echo "">> report.txt
+fi
+if test ! -z "$(pestat | tr -d "*" | tail -n +2 | awk '$3-$5>$5-2 {print $1,$2,$3,$5,$4,$6}')";then
+echo "Warning: These nodes are overloaded: ">> report.txt
+pestat | head -n 1 | awk '{print $1,$2,$3,$5,$4,$6}'>> report.txt
+pestat | tr -d "*" | tail -n +2 | awk '$3-$5>$5-2 {print $1,$2,$3,$5,$4,$6}'>> report.txt
+echo "" >> report.txt
+fi
+sendEmail -f ${userEmail%%@*} -xu ${userEmail} -xp $Emailpasswd -t ${recipients} -s smtp.shanghaitech.edu.cn -u "HPC故障报告(自动发送)" -a report.txt -o message-charset=utf-8 -o message-file=report.txt
+}
+
+AbnormalSignal=0
+UserOverload=0
+WhiteUserlist=()
+DDtimer=0
+
+while getopts ":hs:r:x:" opt
+do
+  case $opt in
+    h)
+        help
+        exit;;
+    x)
+        Emailpasswd=$OPTARG;;
+    s)
+        userEmail=$OPTARG;;
+    r)
+        recipients=$OPTARG;;
+    ?)
+        echo ""
+        echo "Error: Do not use undefined options."
+        echo ""
+        help
+        exit;;
+    esac
+done
+
+for m in "Emailpasswd" "userEmail" "recipients" ;do
+    if [ ! $(eval echo '$'"${m}") ];then
+        echo "Error: The ${m} must be specified."
+        exit
+    fi
+done
+
+for((i=0;i<2;)); do
+checkHPC;
+if [[ $AbnormalSignal -gt 2 ]];then
+        checklog;
+        AbnormalSignal=0
+        sleep 36000
+fi
+toprank;
+if [[ $UserOverload -gt 0 ]];then
+        mailtoUser
+fi
+DDtimer=$((DDtimer+10))
+if [[ $DDtimer -gt 86399 ]];then
+        WhiteUserlist=()
+fi
+sleep 10 ;
+done
+
+
+
