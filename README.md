@@ -6,6 +6,18 @@ Modes Currently Supported:
       1.pestat
       2.top
 
+Dependence
+----
+
+You must confirm that SendEmail can be used on HPC.
+
+Or install it now.
+
+            wget http://caspian.dotconf.net/menu/Software/SendEmail/sendEmail-v1.56.tar.gz
+            tar zxvf sendEmail-v1.56.tar.gz 
+            cd sendEmail-v1.56
+            echo "export PATH=${PWD}:\$PATH" >> ~/.bashrc
+
 Usage
 ----
 
