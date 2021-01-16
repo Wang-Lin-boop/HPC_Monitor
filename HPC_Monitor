@@ -16,6 +16,7 @@ Example: HPC_Monitor -s Monitor@shanghaitech.edu.cn -r User@shanghaitech.edu.cn 
     -s sender_E-mail 
     -r recipients_E-mail 
     -x passwd_of_sender_E-mail
+    -c smtp site
 
 Thank you for your using, If you found any problem, Please contact wanglin3@shanghaitech.edu.cn.
 HELP
@@ -40,6 +41,8 @@ fi
 function mailtoUser(){
 date > mailtoUser.txt
 echo "$Username在学校集群登录节点占用的资源已超过登录节点最大限制，请及时处理！" >> mailtoUser.txt
+echo "节点信息：" >> mailtoUser.txt
+ifconfig | grep "inet addr" | head -n 1 >> mailtoUser.txt
 top -b -n 1 | head -8 | grep COMMAND | awk '{print $1,$2,$9,$10,$11,$12}' >> mailtoUser.txt
 top -b -n 1 | head -8 | tail -3 | awk '$9>600.0 {print $1,$2,$9,$10,$11,$12}' >> mailtoUser.txt
 echo "" >> mailtoUser.txt
@@ -86,15 +89,16 @@ pestat | head -n 1 | awk '{print $1,$2,$3,$5,$4,$6}'>> report.txt
 pestat | tr -d "*" | tail -n +2 | awk '$3-$5>$5-2 {print $1,$2,$3,$5,$4,$6}'>> report.txt
 echo "" >> report.txt
 fi
-sendEmail -f ${userEmail%%@*} -xu ${userEmail} -xp $Emailpasswd -t ${recipients} -s smtp.shanghaitech.edu.cn -u "HPC故障报告(自动发送)" -a report.txt -o message-charset=utf-8 -o message-file=report.txt
+sendEmail -f "${userEmail}" -xu ${userEmail%%@*} -xp $Emailpasswd -t "${recipients}" -s "$smtpsite" -u "HPC故障报告(自动发送)" -a report.txt -o message-charset=utf-8 -o message-file=report.txt
 }
 
 AbnormalSignal=0
 UserOverload=0
 WhiteUserlist=()
 DDtimer=0
+smtpsite="smtp.shanghaitech.edu.cn"
 
-while getopts ":hs:r:x:" opt
+while getopts ":hs:r:x:c:" opt
 do
   case $opt in
     h)
@@ -106,6 +110,8 @@ do
         userEmail=$OPTARG;;
     r)
         recipients=$OPTARG;;
+    c)
+        smtpsite=$OPTARG;;
     ?)
         echo ""
         echo "Error: Do not use undefined options."
